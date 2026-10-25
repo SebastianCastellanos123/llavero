@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sebastiancastellanos123.llavero.otp.OtpAccount
@@ -66,7 +67,7 @@ class AccountScreensTest {
         var saved: OtpAccount? = null
         compose.setContent { AddAccountScreen(onSave = { saved = it }, onBack = {}) }
 
-        compose.onNodeWithTag("save").performClick()
+        compose.onNodeWithTag("save").performScrollTo().performClick()
         compose.onNodeWithText("Escribe el nombre de la cuenta").assertIsDisplayed()
         compose.onNodeWithText("Escribe la clave secreta").assertIsDisplayed()
         assertNull(saved)
@@ -74,7 +75,7 @@ class AccountScreensTest {
         compose.onNodeWithTag("issuer").performTextInput("GitHub")
         compose.onNodeWithTag("accountName").performTextInput("sebastian")
         compose.onNodeWithTag("secret").performTextInput("JBSWY3DPEHPK3PXP")
-        compose.onNodeWithTag("save").performClick()
+        compose.onNodeWithTag("save").performScrollTo().performClick()
 
         assertEquals("GitHub", saved?.issuer)
         assertEquals("sebastian", saved?.accountName)
@@ -91,8 +92,9 @@ class AccountScreensTest {
         compose.onNodeWithText("Revisar cuenta").assertIsDisplayed()
         compose.onNodeWithText("GitHub").assertIsDisplayed()
         compose.onNodeWithText("sebastian").assertIsDisplayed()
-        compose.onNodeWithText("Algoritmo").assertIsDisplayed() // opciones avanzadas abiertas
-        compose.onNodeWithTag("save").performClick()
+        // Opciones avanzadas abiertas. En pantallas pequeñas quedan más abajo: se desplaza como lo haría una persona.
+        compose.onNodeWithText("Algoritmo").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("save").performScrollTo().performClick()
         assertEquals(8, saved?.digits)
     }
 }

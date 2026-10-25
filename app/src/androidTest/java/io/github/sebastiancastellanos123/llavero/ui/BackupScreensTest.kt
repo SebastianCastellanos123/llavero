@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -87,8 +88,8 @@ class BackupScreensTest {
                 onImport = { imported = true },
             )
         }
-        compose.onNodeWithTag("export").performClick()
-        compose.onNodeWithTag("import").performClick()
+        compose.onNodeWithTag("export").performScrollTo().performClick()
+        compose.onNodeWithTag("import").performScrollTo().performClick()
         assertEquals(true, exported)
         assertEquals(true, imported)
     }
