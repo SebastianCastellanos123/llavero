@@ -52,6 +52,9 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.zxing.core)
     implementation(libs.androidx.biometric)
+    // Versión explícita: biometric trae fragment 1.2.5, que no acepta los códigos de
+    // solicitud de los selectores modernos (ActivityResultRegistry) y cierra la app.
+    implementation(libs.androidx.fragment)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
