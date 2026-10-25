@@ -34,9 +34,13 @@ jobs:
       - name: Pruebas, lint y compilación
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug
 
+      - name: Anotar pruebas fallidas
+        if: failure()
+        run: python3 .github/scripts/anotar_fallos.py app/build/test-results
+
       - name: Reportes
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: reportes-jvm
           path: app/build/reports
@@ -77,9 +81,15 @@ jobs:
             adb wait-for-device
             ./gradlew connectedDebugAndroidTest
 
+      - name: Anotar pruebas fallidas
+        if: failure()
+        run: python3 .github/scripts/anotar_fallos.py app/build/outputs/androidTest-results
+
       - name: Reportes
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: reportes-emulador
-          path: app/build/reports/androidTests
+          path: |
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
