@@ -15,13 +15,19 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PermissionsTest {
     @Test
-    fun onlyCameraPermissionIsRequested() {
+    fun onlyExpectedPermissionsAreRequested() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
         val requested = info.requestedPermissions.orEmpty().toSet()
             // Permiso interno que AndroidX agrega para sus propios receptores; no da acceso a nada externo.
             .filterNot { it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
             .toSet()
-        assertEquals(setOf(Manifest.permission.CAMERA), requested)
+        val expected = setOf(
+            Manifest.permission.CAMERA, // leer códigos QR
+            // Los agrega androidx.biometric para el bloqueo con huella; Android los concede sin preguntar.
+            Manifest.permission.USE_BIOMETRIC,
+            @Suppress("DEPRECATION") Manifest.permission.USE_FINGERPRINT,
+        )
+        assertEquals(expected, requested)
     }
 }

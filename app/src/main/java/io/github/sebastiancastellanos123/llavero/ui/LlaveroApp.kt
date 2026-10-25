@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -46,16 +47,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sebastiancastellanos123.llavero.R
 import io.github.sebastiancastellanos123.llavero.scan.decodeQrFromImage
+import io.github.sebastiancastellanos123.llavero.security.SecurityViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class Screen { List, Scan, Add }
+private enum class Screen { List, Scan, Add, Settings }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LlaveroApp(viewModel: AccountsViewModel = viewModel(factory = AccountsViewModel.Factory)) {
+fun LlaveroApp(
+    security: SecurityViewModel,
+    authenticator: Authenticator,
+    viewModel: AccountsViewModel = viewModel(factory = AccountsViewModel.Factory),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pendingForm by viewModel.pendingForm.collectAsStateWithLifecycle()
     var screen by rememberSaveable { mutableStateOf(Screen.List) }
@@ -107,11 +113,52 @@ fun LlaveroApp(viewModel: AccountsViewModel = viewModel(factory = AccountsViewMo
             )
             return
         }
+        Screen.Settings -> {
+            BackHandler { goToList() }
+            val lockAvailable by security.lockAvailable.collectAsStateWithLifecycle()
+            val lockEnabled by security.lockEnabled.collectAsStateWithLifecycle()
+            val blockScreenshots by security.blockScreenshots.collectAsStateWithLifecycle()
+
+            // Bajar la protección exige verificar que quien tiene el teléfono es el dueño.
+            fun confirmThen(title: String, action: () -> Unit) {
+                if (lockAvailable) {
+                    authenticator.authenticate(title, "Confirma que eres tú", action) { scope.launch { snackbar.showSnackbar(it) } }
+                } else {
+                    action()
+                }
+            }
+
+            SettingsScreen(
+                lockAvailable = lockAvailable,
+                lockEnabled = lockEnabled,
+                blockScreenshots = blockScreenshots,
+                onLockChange = { enable ->
+                    if (enable) security.setLockEnabled(true)
+                    else confirmThen("Desactivar el bloqueo") { security.setLockEnabled(false) }
+                },
+                onBlockScreenshotsChange = { block ->
+                    if (block) security.setBlockScreenshots(true)
+                    else confirmThen("Permitir capturas de pantalla") { security.setBlockScreenshots(false) }
+                },
+                onBack = { goToList() },
+            )
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
+            return
+        }
         Screen.List -> Unit
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Llavero") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Llavero") },
+                actions = {
+                    IconButton(onClick = { screen = Screen.Settings }) {
+                        Icon(painterResource(R.drawable.ic_settings), contentDescription = "Ajustes")
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (state is AccountsState.Ready) {

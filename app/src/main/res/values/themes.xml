@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Llavero" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Tema AppCompat porque androidx.biometric, en Android 8 (API 26-27), muestra
+      su diálogo de huella con componentes AppCompat. La interfaz en sí es Compose.
+    -->
+    <style name="Theme.Llavero" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>
