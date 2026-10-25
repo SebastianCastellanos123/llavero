@@ -44,13 +44,18 @@ import io.github.sebastiancastellanos123.llavero.otp.OtpAccount
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddAccountScreen(onSave: (OtpAccount) -> Unit, onBack: () -> Unit) {
+fun AddAccountScreen(
+    onSave: (OtpAccount) -> Unit,
+    onBack: () -> Unit,
+    scannedForm: AccountForm? = null,
+) {
     // remember y no rememberSaveable: rememberSaveable guardaría la clave secreta
     // en el estado que Android escribe a disco cuando cierra la app en segundo plano.
-    var form by remember { mutableStateOf(AccountForm()) }
+    var form by remember(scannedForm) { mutableStateOf(scannedForm ?: AccountForm()) }
     var errors by remember { mutableStateOf(FormErrors()) }
     var showSecret by remember { mutableStateOf(false) }
-    var showAdvanced by remember { mutableStateOf(false) }
+    // Si el QR trae valores poco comunes, se muestran para que el usuario los vea.
+    var showAdvanced by remember(scannedForm) { mutableStateOf(scannedForm?.hasDefaultAdvancedOptions == false) }
 
     fun submit() {
         when (val result = form.validate()) {
@@ -62,7 +67,7 @@ fun AddAccountScreen(onSave: (OtpAccount) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agregar cuenta") },
+                title = { Text(if (scannedForm != null) "Revisar cuenta" else "Agregar cuenta") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Volver")
@@ -81,7 +86,12 @@ fun AddAccountScreen(onSave: (OtpAccount) -> Unit, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Escribe los datos que te muestra el servicio cuando eliges «ingresar la clave manualmente».",
+                if (scannedForm != null) {
+                    "Estos datos vienen del código QR. Revisa que el servicio y la cuenta sean los que esperas; " +
+                        "puedes cambiar los nombres antes de guardar."
+                } else {
+                    "Escribe los datos que te muestra el servicio cuando eliges «ingresar la clave manualmente»."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

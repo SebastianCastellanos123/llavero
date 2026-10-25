@@ -1,5 +1,7 @@
 package io.github.sebastiancastellanos123.llavero.otp
 
+import java.security.MessageDigest
+
 /**
  * Una cuenta TOTP. El secreto se copia al entrar y al salir para que nadie
  * pueda modificar el arreglo interno, y toString() nunca lo imprime: así no
@@ -30,6 +32,11 @@ class OtpAccount(
     }
 
     fun secret(): ByteArray = secretBytes.copyOf()
+
+    /** Misma cuenta: mismo emisor, nombre y secreto. El secreto se compara en tiempo constante. */
+    fun isSameAs(other: OtpAccount): Boolean =
+        issuer == other.issuer && accountName == other.accountName &&
+            MessageDigest.isEqual(secretBytes, other.secretBytes)
 
     fun codeAt(epochSeconds: Long): String =
         Otp.totp(secretBytes, epochSeconds, period, digits, algorithm)

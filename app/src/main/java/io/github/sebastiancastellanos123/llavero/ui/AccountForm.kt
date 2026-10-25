@@ -14,6 +14,29 @@ data class AccountForm(
     val digits: Int = Otp.DEFAULT_DIGITS,
     val period: String = Otp.DEFAULT_PERIOD.toString(),
 ) {
+    companion object {
+        /** Formulario ya lleno con lo que traía un QR, para que el usuario lo revise antes de guardar. */
+        fun from(account: OtpAccount): AccountForm {
+            val secret = account.secret()
+            try {
+                return AccountForm(
+                    issuer = account.issuer.orEmpty(),
+                    accountName = account.accountName,
+                    secret = Base32.encode(secret).trimEnd('='),
+                    algorithm = account.algorithm,
+                    digits = account.digits,
+                    period = account.period.toString(),
+                )
+            } finally {
+                secret.fill(0)
+            }
+        }
+    }
+
+    /** true si el usuario no necesita mirar las opciones avanzadas. */
+    val hasDefaultAdvancedOptions: Boolean
+        get() = algorithm == HashAlgorithm.SHA1 && digits == Otp.DEFAULT_DIGITS && period == Otp.DEFAULT_PERIOD.toString()
+
     // El secreto nunca aparece si el formulario termina en un log.
     override fun toString(): String =
         "AccountForm(issuer=$issuer, accountName=$accountName, secret=<oculto>, " +

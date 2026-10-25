@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Único permiso de la app: la cámara, solo para leer códigos QR. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Sin cámara la app igual se instala: se puede ingresar la clave a mano. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

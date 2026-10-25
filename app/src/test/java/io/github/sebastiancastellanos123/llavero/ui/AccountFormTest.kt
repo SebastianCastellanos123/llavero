@@ -2,6 +2,7 @@ package io.github.sebastiancastellanos123.llavero.ui
 
 import io.github.sebastiancastellanos123.llavero.otp.Base32
 import io.github.sebastiancastellanos123.llavero.otp.HashAlgorithm
+import io.github.sebastiancastellanos123.llavero.otp.OtpAuthUri
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -83,5 +84,26 @@ class AccountFormTest {
         assertEquals("123 456", formatCode("123456"))
         assertEquals("1234 567", formatCode("1234567"))
         assertEquals("1234 5678", formatCode("12345678"))
+    }
+
+    @Test
+    fun formFromScannedAccountRoundTrips() {
+        val scanned = OtpAuthUri.parse(
+            "otpauth://totp/GitHub:sebastian?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA256&digits=8&period=60"
+        )
+        val form = AccountForm.from(scanned)
+        assertEquals("GitHub", form.issuer)
+        assertEquals("sebastian", form.accountName)
+        assertEquals("JBSWY3DPEHPK3PXP", form.secret)
+        assertFalse(form.hasDefaultAdvancedOptions)
+
+        val rebuilt = (form.validate() as FormResult.Valid).account
+        assertTrue(rebuilt.isSameAs(scanned))
+        assertEquals(scanned.codeAt(1_700_000_000), rebuilt.codeAt(1_700_000_000))
+    }
+
+    @Test
+    fun defaultAdvancedOptionsDetected() {
+        assertTrue(AccountForm.from(OtpAuthUri.parse("otpauth://totp/ana?secret=JBSWY3DPEHPK3PXP")).hasDefaultAdvancedOptions)
     }
 }

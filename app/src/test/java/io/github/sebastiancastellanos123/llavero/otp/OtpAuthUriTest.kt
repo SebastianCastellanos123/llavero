@@ -120,4 +120,13 @@ class OtpAuthUriTest {
         account.secret().fill(0)
         assertEquals(before, account.codeAt(1_700_000_000))
     }
+
+    @Test
+    fun isSameAsComparesIssuerNameAndSecret() {
+        val a = OtpAuthUri.parse("otpauth://totp/Banco:ana?secret=JBSWY3DPEHPK3PXP")
+        assertTrue(a.isSameAs(OtpAuthUri.parse("otpauth://totp/Banco:ana?secret=jbsw y3dp ehpk 3pxp")))
+        assertFalse(a.isSameAs(OtpAuthUri.parse("otpauth://totp/Banco:ana?secret=MZXW6YTBOI")))
+        assertFalse(a.isSameAs(OtpAuthUri.parse("otpauth://totp/Otro:ana?secret=JBSWY3DPEHPK3PXP")))
+        assertFalse(a.isSameAs(OtpAuthUri.parse("otpauth://totp/Banco:luis?secret=JBSWY3DPEHPK3PXP")))
+    }
 }

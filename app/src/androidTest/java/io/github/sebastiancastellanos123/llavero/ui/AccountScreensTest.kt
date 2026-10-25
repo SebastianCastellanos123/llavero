@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.sebastiancastellanos123.llavero.otp.OtpAccount
+import io.github.sebastiancastellanos123.llavero.otp.OtpAuthUri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -77,5 +78,21 @@ class AccountScreensTest {
 
         assertEquals("GitHub", saved?.issuer)
         assertEquals("sebastian", saved?.accountName)
+    }
+
+    @Test
+    fun scannedFormIsShownForReviewWithUnusualOptionsVisible() {
+        val scanned = AccountForm.from(
+            OtpAuthUri.parse("otpauth://totp/GitHub:sebastian?secret=JBSWY3DPEHPK3PXP&algorithm=SHA256&digits=8")
+        )
+        var saved: OtpAccount? = null
+        compose.setContent { AddAccountScreen(onSave = { saved = it }, onBack = {}, scannedForm = scanned) }
+
+        compose.onNodeWithText("Revisar cuenta").assertIsDisplayed()
+        compose.onNodeWithText("GitHub").assertIsDisplayed()
+        compose.onNodeWithText("sebastian").assertIsDisplayed()
+        compose.onNodeWithText("Algoritmo").assertIsDisplayed() // opciones avanzadas abiertas
+        compose.onNodeWithTag("save").performClick()
+        assertEquals(8, saved?.digits)
     }
 }

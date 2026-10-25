@@ -7,6 +7,10 @@ import android.content.Context
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -14,7 +18,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -32,35 +38,76 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sebastiancastellanos123.llavero.R
+import io.github.sebastiancastellanos123.llavero.scan.decodeQrFromImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private enum class Screen { List, Scan, Add }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LlaveroApp(viewModel: AccountsViewModel = viewModel(factory = AccountsViewModel.Factory)) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var adding by rememberSaveable { mutableStateOf(false) }
+    val pendingForm by viewModel.pendingForm.collectAsStateWithLifecycle()
+    var screen by rememberSaveable { mutableStateOf(Screen.List) }
+    var showAddOptions by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    fun goToList() {
+        viewModel.clearPendingForm()
+        screen = Screen.List
+    }
+
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { decodeQrFromImage(context, uri) }.getOrNull()
+            }
+            when {
+                text == null -> snackbar.showSnackbar("No se encontró un código QR en esa imagen")
+                viewModel.onQrScanned(text) -> screen = Screen.Add
+            }
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 
-    if (adding) {
-        BackHandler { adding = false }
-        AddAccountScreen(
-            onSave = { viewModel.add(it); adding = false },
-            onBack = { adding = false },
-        )
-        return
+    when (screen) {
+        Screen.Scan -> {
+            BackHandler { goToList() }
+            ScanScreen(
+                onQrFound = { text -> viewModel.onQrScanned(text).also { if (it) screen = Screen.Add } },
+                onManualEntry = { screen = Screen.Add },
+                onBack = { goToList() },
+            )
+            // Los avisos de QR inválido se muestran encima de la cámara.
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { SnackbarHost(snackbar) }
+            return
+        }
+        Screen.Add -> {
+            BackHandler { goToList() }
+            AddAccountScreen(
+                onSave = { viewModel.add(it); goToList() },
+                onBack = { goToList() },
+                scannedForm = pendingForm,
+            )
+            return
+        }
+        Screen.List -> Unit
     }
 
     Scaffold(
@@ -69,9 +116,10 @@ fun LlaveroApp(viewModel: AccountsViewModel = viewModel(factory = AccountsViewMo
         floatingActionButton = {
             if (state is AccountsState.Ready) {
                 ExtendedFloatingActionButton(
-                    onClick = { adding = true },
+                    onClick = { showAddOptions = true },
                     icon = { Icon(painterResource(R.drawable.ic_add), contentDescription = null) },
                     text = { Text("Agregar") },
+                    modifier = Modifier.testTag("add"),
                 )
             }
         },
@@ -101,6 +149,34 @@ fun LlaveroApp(viewModel: AccountsViewModel = viewModel(factory = AccountsViewMo
             )
         }
     }
+
+    if (showAddOptions) {
+        ModalBottomSheet(onDismissRequest = { showAddOptions = false }) {
+            AddOption(R.drawable.ic_qr_scanner, "Escanear código QR", "Con la cámara") {
+                showAddOptions = false
+                screen = Screen.Scan
+            }
+            AddOption(R.drawable.ic_image, "Elegir imagen con QR", "Por ejemplo, una captura de pantalla") {
+                showAddOptions = false
+                pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+            AddOption(R.drawable.ic_keyboard, "Ingresar clave manualmente", "Si el servicio te muestra la clave como texto") {
+                showAddOptions = false
+                screen = Screen.Add
+            }
+            Box(Modifier.padding(bottom = 24.dp))
+        }
+    }
+}
+
+@Composable
+private fun AddOption(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = { Icon(painterResource(icon), contentDescription = null) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }
 
 /** Segundo Unix actual; se actualiza justo al cambiar de segundo. */
