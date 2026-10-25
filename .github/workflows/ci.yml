@@ -22,14 +22,14 @@ jobs:
       - uses: actions/checkout@v5
 
       # Comprueba que gradle-wrapper.jar sea uno oficial de Gradle y no uno alterado.
-      - uses: gradle/actions/wrapper-validation@v5
+      - uses: gradle/actions/wrapper-validation@v6
 
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 25
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Pruebas, lint y compilación
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug
@@ -53,7 +53,7 @@ jobs:
           distribution: temurin
           java-version: 25
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       # El emulador necesita aceleración por hardware (KVM) para ser usable.
       - name: Habilitar KVM
