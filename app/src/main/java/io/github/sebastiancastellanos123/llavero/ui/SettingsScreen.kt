@@ -1,5 +1,6 @@
 package io.github.sebastiancastellanos123.llavero.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,8 @@ fun SettingsScreen(
     onLockChange: (Boolean) -> Unit,
     onBlockScreenshotsChange: (Boolean) -> Unit,
     onBack: () -> Unit,
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -88,6 +91,25 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("screenshotSwitch"),
                     )
                 },
+            )
+            HorizontalDivider()
+            Text(
+                "Respaldo",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 4.dp),
+            )
+            ListItem(
+                headlineContent = { Text("Exportar respaldo cifrado") },
+                supportingContent = {
+                    Text("Guarda todas tus cuentas en un archivo protegido con una contraseña, para pasarlas a otro teléfono.")
+                },
+                modifier = Modifier.clickable(onClick = onExport).testTag("export"),
+            )
+            ListItem(
+                headlineContent = { Text("Importar respaldo") },
+                supportingContent = { Text("Agrega las cuentas de un respaldo de Llavero. Las que ya tienes no se duplican.") },
+                modifier = Modifier.clickable(onClick = onImport).testTag("import"),
             )
         }
     }

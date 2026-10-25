@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.sebastiancastellanos123.llavero.backup.BackupCodec
+import io.github.sebastiancastellanos123.llavero.backup.InvalidBackupException
+import io.github.sebastiancastellanos123.llavero.backup.WrongPasswordException
 import io.github.sebastiancastellanos123.llavero.otp.OtpAccount
 import io.github.sebastiancastellanos123.llavero.otp.OtpAuthUri
 import io.github.sebastiancastellanos123.llavero.storage.CorruptStoreException
@@ -19,6 +22,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+/** "Se importó 1 cuenta (2 ya estaban)", con singular y plural correctos. */
+internal fun importMessage(added: Int, skipped: Int): String {
+    val main = if (added == 1) "Se importó 1 cuenta" else "Se importaron $added cuentas"
+    val rest = when (skipped) {
+        0 -> ""
+        1 -> " (1 ya estaba)"
+        else -> " ($skipped ya estaban)"
+    }
+    return main + rest
+}
 
 sealed interface AccountsState {
     data object Loading : AccountsState
@@ -82,6 +96,50 @@ class AccountsViewModel(private val store: EncryptedAccountStore) : ViewModel() 
         } else {
             Change.Save(list + account, "Cuenta agregada")
         }
+    }
+
+    /**
+     * Cifra todas las cuentas con la contraseña. Devuelve null si no hay cuentas.
+     * PBKDF2 tarda alrededor de un segundo a propósito: se calcula fuera del hilo principal.
+     */
+    suspend fun createBackup(password: CharArray): ByteArray? {
+        try {
+            val accounts = (_state.value as? AccountsState.Ready)?.accounts?.takeIf { it.isNotEmpty() } ?: return null
+            return withContext(Dispatchers.Default) { BackupCodec.encrypt(accounts, password) }
+        } finally {
+            password.fill('\u0000')
+        }
+    }
+
+    sealed interface ImportResult {
+        data object Done : ImportResult
+        data object WrongPassword : ImportResult
+        data class Invalid(val message: String) : ImportResult
+    }
+
+    /** Agrega las cuentas del respaldo que no estén ya; las repetidas se saltan. */
+    suspend fun importBackup(data: ByteArray, password: CharArray): ImportResult {
+        val imported = try {
+            withContext(Dispatchers.Default) { BackupCodec.decrypt(data, password) }
+        } catch (e: WrongPasswordException) {
+            return ImportResult.WrongPassword
+        } catch (e: InvalidBackupException) {
+            return ImportResult.Invalid(e.message ?: "Respaldo no válido")
+        } finally {
+            password.fill('\u0000')
+        }
+        update { list ->
+            val added = imported.fold(emptyList<OtpAccount>()) { acc, account ->
+                if ((list + acc).any { it.isSameAs(account) }) acc else acc + account
+            }
+            val skipped = imported.size - added.size
+            when {
+                imported.isEmpty() -> Change.Rejected("El respaldo no tiene cuentas")
+                added.isEmpty() -> Change.Rejected("Todas las cuentas del respaldo ya estaban en Llavero")
+                else -> Change.Save(list + added, importMessage(added.size, skipped))
+            }
+        }
+        return ImportResult.Done
     }
 
     fun delete(account: OtpAccount) = update { list ->

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.activity.compose.BackHandler
@@ -46,14 +47,35 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sebastiancastellanos123.llavero.R
+import io.github.sebastiancastellanos123.llavero.backup.BackupCodec
 import io.github.sebastiancastellanos123.llavero.scan.decodeQrFromImage
 import io.github.sebastiancastellanos123.llavero.security.SecurityViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.time.LocalDate
 
 private enum class Screen { List, Scan, Add, Settings }
+
+private enum class BackupDialog { Export, Import }
+
+/** Lee el archivo completo, pero devuelve null si pasa de [maxBytes]. */
+private fun readLimited(context: Context, uri: Uri, maxBytes: Int): ByteArray? {
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            out.write(buffer, 0, read)
+            if (out.size() > maxBytes) return null
+        }
+        return out.toByteArray()
+    }
+    return null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +95,95 @@ fun LlaveroApp(
     fun goToList() {
         viewModel.clearPendingForm()
         screen = Screen.List
+    }
+
+    // Respaldo: primero se cifra en memoria y después se elige dónde guardarlo,
+    // así la contraseña no tiene que esperar a que el usuario navegue entre carpetas.
+    var backupDialog by remember { mutableStateOf<BackupDialog?>(null) }
+    var backupBusy by remember { mutableStateOf(false) }
+    var backupError by remember { mutableStateOf<String?>(null) }
+    var encryptedBackup by remember { mutableStateOf<ByteArray?>(null) }
+    var backupToImport by remember { mutableStateOf<ByteArray?>(null) }
+
+    val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val data = encryptedBackup
+        encryptedBackup = null
+        if (uri == null || data == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(data) } }.isSuccess
+            }
+            snackbar.showSnackbar(
+                if (saved) "Respaldo guardado. Sin la contraseña no se puede abrir: guárdala en un lugar seguro."
+                else "No se pudo guardar el respaldo"
+            )
+        }
+    }
+
+    val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val data = withContext(Dispatchers.IO) {
+                runCatching { readLimited(context, uri, BackupCodec.MAX_FILE_BYTES) }.getOrNull()
+            }
+            if (data == null) {
+                snackbar.showSnackbar("No se pudo leer el archivo o es demasiado grande")
+            } else {
+                backupToImport = data
+                backupError = null
+                backupDialog = BackupDialog.Import
+            }
+        }
+    }
+
+    when (backupDialog) {
+        BackupDialog.Export -> PasswordDialog(
+            title = "Exportar respaldo",
+            message = "Elige una contraseña para el archivo. Si la olvidas, el respaldo no se puede recuperar.",
+            confirmLabel = "Cifrar y guardar",
+            confirm = true,
+            busy = backupBusy,
+            error = null,
+            onConfirm = { password ->
+                backupBusy = true
+                scope.launch {
+                    encryptedBackup = viewModel.createBackup(password)
+                    backupBusy = false
+                    backupDialog = null
+                    if (encryptedBackup != null) saveBackup.launch("llavero-respaldo-${LocalDate.now()}.llavero")
+                }
+            },
+            onDismiss = { backupDialog = null },
+        )
+        BackupDialog.Import -> PasswordDialog(
+            title = "Importar respaldo",
+            message = "Escribe la contraseña con la que se creó el respaldo.",
+            confirmLabel = "Importar",
+            confirm = false,
+            busy = backupBusy,
+            error = backupError,
+            onConfirm = { password ->
+                val data = backupToImport
+                if (data != null) {
+                    backupBusy = true
+                    scope.launch {
+                        when (val result = viewModel.importBackup(data, password)) {
+                            AccountsViewModel.ImportResult.Done -> backupDialog = null
+                            AccountsViewModel.ImportResult.WrongPassword ->
+                                backupError = "Contraseña incorrecta o el archivo fue alterado"
+                            is AccountsViewModel.ImportResult.Invalid -> {
+                                backupDialog = null
+                                snackbar.showSnackbar(result.message)
+                            }
+                        }
+                        backupBusy = false
+                        if (backupDialog == null) backupToImport = null
+                    }
+                }
+            },
+            onDismiss = { backupDialog = null; backupToImport = null },
+        )
+        null -> Unit
     }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -129,6 +240,15 @@ fun LlaveroApp(
             }
 
             SettingsScreen(
+                onExport = {
+                    if ((state as? AccountsState.Ready)?.accounts.isNullOrEmpty()) {
+                        scope.launch { snackbar.showSnackbar("No hay cuentas para exportar") }
+                    } else {
+                        // Exportar saca los secretos del teléfono: se confirma que es el dueño.
+                        confirmThen("Exportar respaldo") { backupDialog = BackupDialog.Export }
+                    }
+                },
+                onImport = { openBackup.launch(arrayOf("*/*")) },
                 lockAvailable = lockAvailable,
                 lockEnabled = lockEnabled,
                 blockScreenshots = blockScreenshots,
