@@ -24,7 +24,7 @@ jobs:
       # Comprueba que gradle-wrapper.jar sea uno oficial de Gradle y no uno alterado.
       - uses: gradle/actions/wrapper-validation@v5
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
@@ -48,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
