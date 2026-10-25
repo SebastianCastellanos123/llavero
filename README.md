@@ -114,3 +114,7 @@ Para comprobar un APK descargado, compara su SHA-256 con el archivo `.sha256` de
 ## Tecnologías
 
 Kotlin · Jetpack Compose · Material 3 · CameraX · ZXing · AndroidX Biometric · Android Keystore · JUnit · Compose UI Test · GitHub Actions
+
+## Licencia
+
+[MIT](LICENSE)
