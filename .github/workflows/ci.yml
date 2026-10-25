@@ -69,7 +69,13 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          # Gráficos por software: con la GPU emulada por defecto, el emulador del runner
+          # fallaba al dibujar ("invalid color buffer") y adb lo veía desconectado.
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-boot-timeout: 900
+          script: |
+            adb wait-for-device
+            ./gradlew connectedDebugAndroidTest
 
       - name: Reportes
         if: always()
