@@ -1,0 +1,5 @@
+# gradlew debe conservar LF para funcionar en Linux (CI)
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.webp binary

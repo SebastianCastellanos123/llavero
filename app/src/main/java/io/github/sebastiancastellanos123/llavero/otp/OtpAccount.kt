@@ -13,10 +13,17 @@ class OtpAccount(
     val digits: Int = Otp.DEFAULT_DIGITS,
     val period: Int = Otp.DEFAULT_PERIOD,
 ) {
+    companion object {
+        /** El nombre llega de un QR ajeno: se limita para no guardar ni dibujar textos enormes. */
+        const val MAX_NAME_LENGTH = 256
+    }
+
     private val secretBytes = secret.copyOf()
 
     init {
         require(accountName.isNotBlank()) { "Falta el nombre de la cuenta" }
+        require(accountName.length <= MAX_NAME_LENGTH) { "Nombre de cuenta demasiado largo" }
+        require((issuer?.length ?: 0) <= MAX_NAME_LENGTH) { "Nombre del emisor demasiado largo" }
         require(secretBytes.isNotEmpty()) { "El secreto está vacío" }
         require(digits in Otp.SUPPORTED_DIGITS) { "Dígitos no soportados: $digits" }
         require(period > 0) { "Periodo inválido: $period" }
