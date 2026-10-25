@@ -14,16 +14,38 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // La clave de firma nunca va en el repositorio: GitHub Actions la entrega por
+    // variables de entorno desde sus secrets (ver .github/workflows/release.yml).
+    val releaseKeystore = System.getenv("LLAVERO_KEYSTORE_PATH")
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("LLAVERO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("LLAVERO_KEY_ALIAS")
+                keyPassword = System.getenv("LLAVERO_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = when {
+                releaseKeystore != null -> signingConfigs.getByName("release")
+                // Solo para probar en local el build optimizado: ./gradlew assembleRelease -Pllavero.debugSigning
+                providers.gradleProperty("llavero.debugSigning").isPresent -> signingConfigs.getByName("debug")
+                else -> null
+            }
+            // R8 sobre toda la app. La plantilla limitaba la optimización a androidx/kotlin
+            // (packageScope) y eso dejaba clases movidas sin acceso a su clase padre:
+            // la app se cerraba al abrir con IllegalAccessError.
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
     }
